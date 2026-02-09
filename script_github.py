@@ -4,6 +4,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.keys import Keys
 from webdriver_manager.chrome import ChromeDriverManager
 import time
 import os
@@ -49,162 +50,221 @@ def automate():
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920,1080")
+    options.add_argument("--start-maximized")
     
     # Anti-detection measures
     options.add_argument("--disable-blink-features=AutomationControlled")
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
     options.add_experimental_option('useAutomationExtension', False)
+    
+    # More realistic user agent
     options.add_argument(
         "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
     )
     
-    # Additional stability options
+    # Additional options
     options.add_argument("--disable-extensions")
     options.add_argument("--disable-popup-blocking")
     options.add_argument("--disable-notifications")
+    options.add_argument("--lang=en-US")
     
     print("🚀 Initializing Chrome WebDriver...")
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=options)
     
-    # Anti-detection script
+    # Advanced anti-detection
+    driver.execute_cdp_cmd('Network.setUserAgentOverride', {
+        "userAgent": 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+    })
     driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+    driver.execute_script("Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]})")
+    driver.execute_script("Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']})")
     
-    wait = WebDriverWait(driver, 30)
+    wait = WebDriverWait(driver, 40)
     
     try:
         # Step 1: Open login page
         print("🌐 Opening Naukri login page...")
         driver.get("https://www.naukri.com/nlogin/login")
-        time.sleep(5)
+        time.sleep(8)
         driver.save_screenshot("step1_login_page.png")
         print(f"📸 Login page loaded. Title: {driver.title}")
         
-        # Step 2: Enter credentials
+        # Step 2: Enter credentials with human-like typing
         print("🔍 Locating username field...")
         username_field = wait.until(EC.presence_of_element_located((By.ID, "usernameField")))
-        username_field.clear()
-        username_field.send_keys(EMAIL)
+        username_field.click()
+        time.sleep(1)
+        
+        # Type slowly like a human
+        for char in EMAIL:
+            username_field.send_keys(char)
+            time.sleep(0.1)
+        
         print(f"✅ Email entered: {EMAIL[:3]}***{EMAIL[-10:]}")
+        time.sleep(1)
         
         print("🔍 Locating password field...")
         password_field = driver.find_element(By.ID, "passwordField")
-        password_field.clear()
-        password_field.send_keys(PASSWORD)
+        password_field.click()
+        time.sleep(1)
+        
+        # Type password slowly
+        for char in PASSWORD:
+            password_field.send_keys(char)
+            time.sleep(0.1)
+        
         print("✅ Password entered")
+        time.sleep(2)
         
         driver.save_screenshot("step2_credentials_entered.png")
         
-        # Step 3: Click login button
-        print("🔍 Locating login button...")
-        login_button = driver.find_element(By.XPATH, "//button[contains(@class,'blue-btn')]")
-        login_button.click()
-        print("✅ Login button clicked")
+        # Step 3: Submit login using ENTER key instead of clicking
+        print("🔐 Submitting login form...")
+        password_field.send_keys(Keys.RETURN)
+        print("✅ Login form submitted")
         
-        # Wait for page to load after login
-        time.sleep(10)
+        # Wait longer for redirect
+        time.sleep(15)
         driver.save_screenshot("step3_after_login.png")
         
-        # Step 4: Verify login success
+        # Step 4: Check multiple URLs for successful login
         current_url = driver.current_url
         print(f"📍 Current URL: {current_url}")
         
-        if "nlogin" in current_url:
+        # Check if we're still on login page
+        if "nlogin/login" in current_url:
             print("❌ LOGIN FAILED - Still on login page!")
             
-            # Try to find error messages
+            # Check for specific error messages
             try:
-                error_elements = driver.find_elements(By.CSS_SELECTOR, ".error, .errorMsg, [class*='error'], [class*='Error']")
-                for elem in error_elements:
-                    if elem.text.strip():
-                        print(f"⚠️ Error message: {elem.text}")
-            except:
-                pass
+                # Look for error messages
+                error_selectors = [
+                    ".error",
+                    ".errorMsg", 
+                    "[class*='error']",
+                    "[class*='Error']",
+                    ".alert",
+                    "[role='alert']"
+                ]
+                
+                for selector in error_selectors:
+                    try:
+                        error_elem = driver.find_element(By.CSS_SELECTOR, selector)
+                        if error_elem.text.strip():
+                            print(f"⚠️ Error on page: {error_elem.text}")
+                    except:
+                        continue
+                        
+            except Exception as e:
+                print(f"Could not check for error messages: {e}")
             
-            print("\n🔍 Possible reasons:")
-            print("  1. Incorrect email or password")
-            print("  2. CAPTCHA verification required")
-            print("  3. Account locked or requires verification")
-            print("  4. Naukri detected automation")
+            print("\n🔍 Troubleshooting steps:")
+            print("  1. Verify EMAIL and PASSWORD in GitHub Secrets are 100% correct")
+            print("  2. Try logging in manually to check if account needs verification")
+            print("  3. Check if CAPTCHA is being shown (download screenshot)")
+            print("  4. Ensure account is not locked")
             
-            driver.save_screenshot("login_failed.png")
+            driver.save_screenshot("login_failed_detailed.png")
             with open("login_page_source.html", "w", encoding="utf-8") as f:
                 f.write(driver.page_source)
             
             return False
         
-        print("✅ Login successful!")
+        print("✅ Login successful! Redirected to:", current_url)
         
-        # Step 5: Navigate to profile page
-        print("🔍 Navigating to profile page...")
+        # Step 5: Navigate directly to resume upload page
+        print("🔍 Navigating to resume upload page...")
         driver.get("https://www.naukri.com/mnjuser/profile")
-        time.sleep(5)
+        time.sleep(8)
         driver.save_screenshot("step4_profile_page.png")
         print(f"📍 Profile page URL: {driver.current_url}")
         
-        # Step 6: Find and upload resume
+        # Step 6: Look for file upload input
         print("🔍 Looking for resume upload input...")
         
-        # Try multiple selectors for file input
-        file_input = None
-        selectors = [
-            "//input[@type='file']",
-            "//input[@name='file']",
-            "//input[contains(@class, 'file')]",
-            "input[type='file']"
-        ]
+        # Wait for page to fully load
+        time.sleep(5)
         
-        for selector in selectors:
+        # Try multiple methods to find file input
+        file_input = None
+        
+        # Method 1: Direct XPath
+        try:
+            file_input = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@type='file']")))
+            print("✅ Found file input (Method 1: XPath)")
+        except:
+            print("⚠️ Method 1 failed, trying Method 2...")
+        
+        # Method 2: CSS Selector
+        if not file_input:
             try:
-                if selector.startswith("//"):
-                    file_input = wait.until(EC.presence_of_element_located((By.XPATH, selector)))
-                else:
-                    file_input = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, selector)))
-                print(f"✅ Found file input using selector: {selector}")
-                break
+                file_input = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='file']")))
+                print("✅ Found file input (Method 2: CSS)")
             except:
-                continue
+                print("⚠️ Method 2 failed, trying Method 3...")
+        
+        # Method 3: Find all file inputs
+        if not file_input:
+            try:
+                file_inputs = driver.find_elements(By.XPATH, "//input[@type='file']")
+                if file_inputs:
+                    file_input = file_inputs[0]
+                    print(f"✅ Found file input (Method 3: Found {len(file_inputs)} file inputs)")
+            except:
+                print("⚠️ Method 3 failed")
         
         if not file_input:
             print("❌ Could not find file upload input!")
-            driver.save_screenshot("no_file_input.png")
+            driver.save_screenshot("no_file_input_found.png")
+            with open("profile_page_source.html", "w", encoding="utf-8") as f:
+                f.write(driver.page_source)
             return False
         
-        # Upload resume
+        # Step 7: Upload resume
         resume_path = os.path.abspath(RESUME_PATH)
         print(f"📤 Uploading resume from: {resume_path}")
+        
+        # Make sure file exists
+        if not os.path.exists(resume_path):
+            print(f"❌ Resume file not found at: {resume_path}")
+            return False
+        
         file_input.send_keys(resume_path)
         print("✅ Resume file path sent to input")
         
-        # Wait for upload to process
-        time.sleep(8)
-        driver.save_screenshot("step5_resume_uploaded.png")
+        # Wait for upload to complete
+        print("⏳ Waiting for upload to process...")
+        time.sleep(10)
+        driver.save_screenshot("step5_after_upload.png")
         
-        # Step 7: Verify upload (optional)
-        print("⏳ Waiting for upload confirmation...")
+        # Additional wait
         time.sleep(5)
         driver.save_screenshot("step6_final.png")
         
         print("\n" + "="*50)
-        print("✅ RESUME UPDATE SUCCESSFUL!")
+        print("✅ RESUME UPDATE COMPLETED!")
         print("="*50)
         return True
         
     except Exception as e:
-        print(f"\n❌ ERROR OCCURRED: {str(e)}")
+        print(f"\n❌ EXCEPTION OCCURRED: {str(e)}")
         print(f"Exception type: {type(e).__name__}")
         
+        import traceback
+        print("\nFull traceback:")
+        print(traceback.format_exc())
+        
         try:
-            print(f"Current URL: {driver.current_url}")
+            print(f"\nCurrent URL: {driver.current_url}")
             print(f"Page title: {driver.title}")
             
-            # Save debug information
             driver.save_screenshot("error.png")
-            print("📸 Error screenshot saved: error.png")
+            print("📸 Error screenshot saved")
             
             with open("error_page_source.html", "w", encoding="utf-8") as f:
                 f.write(driver.page_source)
-            print("📄 Page source saved: error_page_source.html")
+            print("📄 Page source saved")
             
         except Exception as debug_error:
             print(f"Could not save debug info: {debug_error}")
@@ -212,7 +272,7 @@ def automate():
         return False
         
     finally:
-        print("🔚 Closing browser...")
+        print("\n🔚 Closing browser...")
         driver.quit()
         print("✅ Browser closed")
 
@@ -227,5 +287,10 @@ if __name__ == "__main__":
         print("\n✅ Script completed successfully!")
         exit(0)
     else:
-        print("\n❌ Script failed. Check logs and screenshots for details.")
+        print("\n❌ Script failed. Check logs and screenshots.")
+        print("\n💡 NEXT STEPS:")
+        print("   1. Download the debug artifacts from GitHub Actions")
+        print("   2. Check step3_after_login.png screenshot")
+        print("   3. Verify your EMAIL and PASSWORD are correct")
+        print("   4. Try logging in manually on Naukri.com")
         exit(1)
