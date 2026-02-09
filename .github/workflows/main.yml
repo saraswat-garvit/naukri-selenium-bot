@@ -16,11 +16,9 @@ jobs:
         with:
           python-version: "3.11"
 
-      # INSTALL CHROME (important)
-      - name: Install Google Chrome
-        run: |
-          sudo apt update
-          sudo apt install -y google-chrome-stable
+      # Install Chrome properly
+      - name: Setup Chrome
+        uses: browser-actions/setup-chrome@v1
 
       - name: Install dependencies
         run: pip install selenium webdriver-manager requests
