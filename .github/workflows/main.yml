@@ -1,11 +1,8 @@
-name: Naukri Resume Auto Update
+name: Naukri Resume Update
 
 on:
   schedule:
-    # Every 6 hours
     - cron: "0 */6 * * *"
-  
-  # Manual trigger
   workflow_dispatch:
 
 jobs:
@@ -13,39 +10,34 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
       
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
       
-      - name: Setup Chrome
-        uses: browser-actions/setup-chrome@v1
+      - uses: browser-actions/setup-chrome@v1
       
       - name: Install dependencies
-        run: |
-          pip install --upgrade pip
-          pip install selenium webdriver-manager requests
+        run: pip install selenium webdriver-manager requests
       
-      - name: Run resume updater
+      - name: Run bot
         env:
           EMAIL: ${{ secrets.EMAIL }}
           PASSWORD: ${{ secrets.PASSWORD }}
           NAUKRI_COOKIES: ${{ secrets.NAUKRI_COOKIES }}
         run: python script_github.py
       
-      - name: Upload screenshots (if failed)
-        if: failure()
+      - name: Upload screenshots
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: debug-screenshots
           path: "*.png"
           retention-days: 7
       
-      - name: Upload HTML source (if failed)
-        if: failure()
+      - name: Upload HTML files
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: debug-html
