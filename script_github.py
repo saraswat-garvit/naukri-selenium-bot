@@ -4,6 +4,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.action_chains import ActionChains
 from webdriver_manager.chrome import ChromeDriverManager
 import json
 import time
@@ -17,32 +18,26 @@ RESUME_URL = "https://drive.google.com/uc?export=download&id=1WC1fGkOEkGcLdzRrJh
 RESUME_PATH = "resume.pdf"
 
 def download_resume():
-    """Download resume from Google Drive"""
     print("📥 Downloading resume...")
     try:
         r = requests.get(RESUME_URL, timeout=30)
         r.raise_for_status()
         with open(RESUME_PATH, "wb") as f:
             f.write(r.content)
-        file_size = os.path.getsize(RESUME_PATH)
-        print(f"✅ Resume downloaded ({file_size} bytes)")
+        print(f"✅ Resume downloaded ({os.path.getsize(RESUME_PATH)} bytes)")
         return True
     except Exception as e:
-        print(f"❌ Resume download failed: {e}")
+        print(f"❌ Download failed: {e}")
         return False
 
 def automate_with_cookies():
-    """Main automation using saved cookies"""
-    
     if not NAUKRI_COOKIES:
-        print("❌ NAUKRI_COOKIES secret not found!")
-        print("Please add cookies to GitHub Secrets")
+        print("❌ NAUKRI_COOKIES not found!")
         return False
     
     if not download_resume():
         return False
     
-    # Setup Chrome
     options = Options()
     options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
@@ -51,123 +46,188 @@ def automate_with_cookies():
     options.add_argument("--window-size=1920,1080")
     options.add_argument("--disable-blink-features=AutomationControlled")
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    options.add_argument(
-        "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-    )
+    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36")
     
     print("🚀 Starting Chrome...")
-    driver = webdriver.Chrome(
-        service=Service(ChromeDriverManager().install()),
-        options=options
-    )
-    
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
     wait = WebDriverWait(driver, 40)
     
     try:
-        # Step 1: Load Naukri homepage
-        print("🌐 Opening Naukri.com...")
+        print("🌐 Opening Naukri...")
         driver.get("https://www.naukri.com")
         time.sleep(3)
         
-        # Step 2: Load cookies
-        print("🍪 Loading authentication cookies...")
+        print("🍪 Loading cookies...")
         try:
             cookies = json.loads(NAUKRI_COOKIES)
             for cookie in cookies:
                 try:
-                    # Some cookies might be invalid for current domain
                     if 'sameSite' in cookie:
                         del cookie['sameSite']
                     driver.add_cookie(cookie)
-                except Exception as e:
-                    print(f"⚠️ Skipping cookie: {e}")
+                except:
+                    pass
             print(f"✅ Loaded {len(cookies)} cookies")
         except Exception as e:
-            print(f"❌ Failed to load cookies: {e}")
+            print(f"❌ Cookie load failed: {e}")
             return False
         
-        # Step 3: Refresh to apply cookies
-        print("🔄 Refreshing page with cookies...")
+        print("🔄 Refreshing...")
         driver.refresh()
         time.sleep(5)
-        driver.save_screenshot("step1_after_cookies.png")
         
-        # Step 4: Navigate to profile
-        print("🔍 Navigating to profile page...")
+        print("🔍 Going to profile...")
         driver.get("https://www.naukri.com/mnjuser/profile")
-        time.sleep(8)
-        driver.save_screenshot("step2_profile_page.png")
+        time.sleep(10)
+        driver.save_screenshot("profile_page.png")
         
-        current_url = driver.current_url
-        print(f"📍 Current URL: {current_url}")
-        
-        # Step 5: Check if logged in
-        if "nlogin" in current_url or "login" in current_url.lower():
-            print("❌ COOKIES EXPIRED OR INVALID!")
-            print("Please update NAUKRI_COOKIES secret")
-            driver.save_screenshot("cookies_expired.png")
+        if "nlogin" in driver.current_url:
+            print("❌ COOKIES EXPIRED!")
             return False
         
-        print("✅ Successfully logged in with cookies!")
+        print("✅ Logged in! Current URL:", driver.current_url)
         
-        # Step 6: Find file upload input
-        print("🔍 Looking for resume upload input...")
+        # Save page HTML for debugging
+        with open("profile_page.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
+        print("📄 Page source saved")
         
-        # Try multiple selectors
-        file_input = None
-        selectors = [
-            (By.XPATH, "//input[@type='file']"),
-            (By.CSS_SELECTOR, "input[type='file']"),
-            (By.XPATH, "//input[@name='file']"),
-            (By.CSS_SELECTOR, "input[name='file']"),
+        # Method 1: Look for "Update Resume" or "Upload Resume" button
+        print("\n🔍 METHOD 1: Looking for Update/Upload Resume button...")
+        update_buttons = [
+            "//button[contains(text(), 'Update Resume')]",
+            "//button[contains(text(), 'Upload Resume')]",
+            "//a[contains(text(), 'Update Resume')]",
+            "//a[contains(text(), 'Upload Resume')]",
+            "//div[contains(text(), 'Update Resume')]",
+            "//span[contains(text(), 'Update Resume')]",
+            "//*[contains(@class, 'updateResume')]",
+            "//*[contains(@class, 'uploadResume')]",
         ]
         
-        for by, selector in selectors:
+        for xpath in update_buttons:
             try:
-                file_input = wait.until(EC.presence_of_element_located((by, selector)))
-                print(f"✅ Found upload input using: {selector}")
+                button = driver.find_element(By.XPATH, xpath)
+                print(f"✅ Found button: {xpath}")
+                button.click()
+                print("✅ Clicked update button")
+                time.sleep(5)
+                driver.save_screenshot("after_button_click.png")
                 break
             except:
                 continue
         
+        # Method 2: Look for file input (all methods)
+        print("\n🔍 METHOD 2: Looking for file input...")
+        file_input = None
+        
+        # Try with JavaScript to find hidden inputs
+        try:
+            all_file_inputs = driver.execute_script("""
+                return Array.from(document.querySelectorAll('input[type="file"]'));
+            """)
+            print(f"Found {len(all_file_inputs)} file inputs via JavaScript")
+            if all_file_inputs:
+                file_input = all_file_inputs[0]
+                print("✅ Using first file input")
+        except Exception as e:
+            print(f"JavaScript method failed: {e}")
+        
+        # Try standard Selenium methods
         if not file_input:
-            print("❌ Could not find file upload input!")
-            print("Trying to find all file inputs...")
-            all_inputs = driver.find_elements(By.TAG_NAME, "input")
-            file_inputs = [inp for inp in all_inputs if inp.get_attribute("type") == "file"]
-            print(f"Found {len(file_inputs)} file inputs")
+            selectors = [
+                (By.CSS_SELECTOR, "input[type='file']"),
+                (By.XPATH, "//input[@type='file']"),
+                (By.CSS_SELECTOR, "input[name='file']"),
+                (By.CSS_SELECTOR, "input[accept*='pdf']"),
+                (By.XPATH, "//input[contains(@accept, 'pdf')]"),
+            ]
             
-            if file_inputs:
-                file_input = file_inputs[0]
-                print("✅ Using first file input found")
-            else:
-                driver.save_screenshot("no_upload_input.png")
-                with open("profile_source.html", "w", encoding="utf-8") as f:
-                    f.write(driver.page_source)
+            for by, selector in selectors:
+                try:
+                    inputs = driver.find_elements(by, selector)
+                    if inputs:
+                        file_input = inputs[0]
+                        print(f"✅ Found using: {selector}")
+                        break
+                except:
+                    continue
+        
+        # Method 3: Try to make hidden input visible
+        if file_input:
+            try:
+                # Make it visible if hidden
+                driver.execute_script("""
+                    arguments[0].style.display = 'block';
+                    arguments[0].style.visibility = 'visible';
+                    arguments[0].style.opacity = '1';
+                    arguments[0].style.height = 'auto';
+                    arguments[0].style.width = 'auto';
+                """, file_input)
+                print("✅ Made input visible")
+            except:
+                pass
+        
+        if not file_input:
+            print("\n❌ Could not find file input with any method!")
+            
+            # Try going to direct upload URL
+            print("\n🔍 METHOD 3: Trying direct upload URL...")
+            try:
+                driver.get("https://www.naukri.com/mnjuser/profile?id=&altresid=")
+                time.sleep(5)
+                driver.save_screenshot("direct_upload_page.png")
+                
+                file_input = driver.find_element(By.XPATH, "//input[@type='file']")
+                print("✅ Found input on direct URL")
+            except:
+                print("❌ Direct URL method also failed")
                 return False
         
-        # Step 7: Upload resume
+        # Upload resume
         resume_path = os.path.abspath(RESUME_PATH)
-        print(f"📤 Uploading resume: {resume_path}")
+        print(f"\n📤 Uploading resume: {resume_path}")
         
         if not os.path.exists(resume_path):
-            print(f"❌ Resume file not found!")
+            print("❌ Resume file not found!")
             return False
         
-        file_input.send_keys(resume_path)
-        print("✅ Resume file sent to input")
+        try:
+            file_input.send_keys(resume_path)
+            print("✅ Resume file sent to input!")
+        except Exception as e:
+            print(f"❌ Failed to send file: {e}")
+            return False
         
-        # Step 8: Wait for upload
-        print("⏳ Waiting for upload to complete...")
-        time.sleep(12)
-        driver.save_screenshot("step3_after_upload.png")
+        print("⏳ Waiting for upload to process...")
+        time.sleep(15)
+        driver.save_screenshot("after_upload.png")
         
-        # Additional wait
+        # Check for success message
+        try:
+            success_indicators = [
+                "//div[contains(text(), 'successfully')]",
+                "//span[contains(text(), 'successfully')]",
+                "//*[contains(text(), 'uploaded')]",
+                "//*[contains(@class, 'success')]",
+            ]
+            
+            for xpath in success_indicators:
+                try:
+                    elem = driver.find_element(By.XPATH, xpath)
+                    if elem.is_displayed():
+                        print(f"✅ Success message found: {elem.text}")
+                        break
+                except:
+                    continue
+        except:
+            pass
+        
         time.sleep(5)
-        driver.save_screenshot("step4_final.png")
+        driver.save_screenshot("final_state.png")
         
         print("\n" + "="*60)
-        print("✅ ✅ ✅ RESUME UPDATED SUCCESSFULLY! ✅ ✅ ✅")
+        print("✅ RESUME UPDATE COMPLETED!")
         print("="*60)
         return True
         
@@ -178,16 +238,13 @@ def automate_with_cookies():
         
         try:
             driver.save_screenshot("error.png")
-            with open("error_source.html", "w", encoding="utf-8") as f:
+            with open("error_page.html", "w", encoding="utf-8") as f:
                 f.write(driver.page_source)
-            print("📸 Error screenshot saved")
         except:
             pass
         
         return False
-        
     finally:
-        print("🔚 Closing browser...")
         driver.quit()
 
 if __name__ == "__main__":
@@ -196,10 +253,4 @@ if __name__ == "__main__":
     print("="*60 + "\n")
     
     success = automate_with_cookies()
-    
-    if success:
-        print("\n✅ DONE! Resume updated successfully!")
-        exit(0)
-    else:
-        print("\n❌ FAILED! Check logs above")
-        exit(1)
+    exit(0 if success else 1)
