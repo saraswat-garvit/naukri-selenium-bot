@@ -1,9 +1,11 @@
-
 name: Naukri Resume Update
 
 on:
   schedule:
+    # Run every 6 hours
     - cron: "0 */6 * * *"
+  
+  # Allow manual trigger
   workflow_dispatch:
 
 jobs:
@@ -11,9 +13,11 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
       
-      - uses: actions/setup-python@v5
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
       
@@ -21,20 +25,23 @@ jobs:
         uses: browser-actions/setup-chrome@v1
       
       - name: Install dependencies
-        run: pip install selenium webdriver-manager requests
+        run: |
+          pip install --upgrade pip
+          pip install selenium webdriver-manager requests
       
-      - name: Run bot
+      - name: Run Naukri bot
         env:
           EMAIL: ${{ secrets.EMAIL }}
           PASSWORD: ${{ secrets.PASSWORD }}
         run: python script_github.py
       
-      - name: Upload debug artifacts on failure
+      - name: Upload debug artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: debug-files
+          name: debug-files-${{ github.run_number }}
           path: |
             *.png
             *.html
           if-no-files-found: ignore
+          retention-days: 7
