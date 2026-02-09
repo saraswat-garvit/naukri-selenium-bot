@@ -8,8 +8,6 @@ import time
 import os
 import requests
 
-EMAIL = os.getenv("EMAIL")
-PASSWORD = os.getenv("PASSWORD")
 NAUKRI_COOKIES = os.getenv("NAUKRI_COOKIES")
 
 RESUME_URL = "https://drive.google.com/uc?export=download&id=1WC1fGkOEkGcLdzRrJhhU1C6HAUw7MpG-"
@@ -50,22 +48,25 @@ def automate_with_cookies():
     wait = WebDriverWait(driver, 40)
 
     try:
+        print("🌐 Opening Naukri...")
         driver.get("https://www.naukri.com")
         time.sleep(3)
 
+        print("🍪 Loading cookies...")
         cookies = json.loads(NAUKRI_COOKIES)
         for cookie in cookies:
             try:
-                if 'sameSite' in cookie:
-                    del cookie['sameSite']
+                if "sameSite" in cookie:
+                    del cookie["sameSite"]
                 driver.add_cookie(cookie)
             except:
                 pass
 
-        print("✅ Cookies loaded")
+        print("🔄 Refreshing session...")
         driver.refresh()
         time.sleep(5)
 
+        print("🔍 Opening profile...")
         driver.get("https://www.naukri.com/mnjuser/profile")
         time.sleep(10)
 
@@ -77,32 +78,56 @@ def automate_with_cookies():
 
         print("✅ Logged in")
 
-        # scroll page (IMPORTANT)
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        # WAIT SPA render
+        wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+        time.sleep(5)
+
+        # scroll to load lazy elements
+        driver.execute_script("window.scrollTo(0, 800);")
+        time.sleep(2)
+        driver.execute_script("window.scrollTo(0, 1600);")
         time.sleep(3)
 
-        print("🔍 Clicking Update Resume")
+        print("🔍 Searching Update Resume button...")
 
-        update_btn = wait.until(EC.element_to_be_clickable((
-            By.XPATH,
-            "//span[contains(text(),'Update resume') or contains(text(),'Update Resume') or contains(text(),'Upload resume')]"
-        )))
+        update_btn = None
+        possible_xpaths = [
+            "//span[contains(text(),'Update resume')]",
+            "//span[contains(text(),'Update Resume')]",
+            "//button[contains(text(),'Update')]",
+            "//*[contains(text(),'Update resume')]"
+        ]
+
+        for xp in possible_xpaths:
+            try:
+                update_btn = wait.until(EC.element_to_be_clickable((By.XPATH, xp)))
+                if update_btn:
+                    break
+            except:
+                continue
+
+        if not update_btn:
+            print("❌ Update button not found")
+            driver.save_screenshot("update_not_found.png")
+            return False
 
         driver.execute_script("arguments[0].click();", update_btn)
         print("✅ Update button clicked")
 
         time.sleep(5)
 
-        print("🔍 Searching file input")
+        print("🔍 Waiting for file input...")
 
         file_input = wait.until(EC.presence_of_element_located((
             By.XPATH, "//input[@type='file']"
         )))
 
+        print("✅ File input found")
+
         resume_path = os.path.abspath(RESUME_PATH)
         file_input.send_keys(resume_path)
 
-        print("📤 Resume uploaded")
+        print("📤 Uploading resume...")
         time.sleep(15)
 
         driver.save_screenshot("after_upload.png")
@@ -112,7 +137,10 @@ def automate_with_cookies():
 
     except Exception as e:
         print("❌ ERROR:", e)
-        driver.save_screenshot("error.png")
+        try:
+            driver.save_screenshot("error.png")
+        except:
+            pass
         return False
 
     finally:
