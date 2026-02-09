@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+dist/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+resume.pdf
+*.png
+*.html
+chromedriver*
+.env
+
+# Logs
+*.log
+```
+
+## Setup Instructions
+
+### 1. Create Repository Structure
+```
+naukri-selenium-bot/
+├── .github/
+│   └── workflows/
+│       └── main.yml
+├── .gitignore
+└── script_github.py
